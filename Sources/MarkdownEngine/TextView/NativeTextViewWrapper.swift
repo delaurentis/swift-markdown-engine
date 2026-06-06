@@ -191,6 +191,14 @@ public struct NativeTextViewWrapper: NSViewRepresentable {
         context.coordinator.onCodeBlockSelectionChange = onCodeBlockSelectionChange
 
         textView.recalcOverscroll(for: scrollView)
+        // Initial reading-column centering; the resize observer below handles later changes.
+        if let readingWidth = configuration.readingWidth {
+            let w = scrollView.contentView.bounds.width
+            if w > 0 {
+                let inset = max(configuration.textInsets.horizontal, (w - readingWidth) / 2)
+                textView.textContainerInset = NSSize(width: inset, height: configuration.textInsets.vertical)
+            }
+        }
         scrollView.contentView.postsBoundsChangedNotifications = true
         var lastObservedViewportWidth = scrollView.contentView.bounds.width
         NotificationCenter.default.addObserver(forName: NSView.frameDidChangeNotification, object: scrollView.contentView, queue: nil) { _ in
@@ -198,6 +206,15 @@ public struct NativeTextViewWrapper: NSViewRepresentable {
             let newWidth = scrollView.contentView.bounds.width
             if abs(newWidth - lastObservedViewportWidth) > 0.5 {
                 lastObservedViewportWidth = newWidth
+                // Reading column: keep body text centered at readingWidth while the text view
+                // fills the full width, so wide tables can break out into the margins via their
+                // scrollable overlay. Symmetric inset = (viewWidth - readingWidth)/2.
+                if let readingWidth = configuration.readingWidth {
+                    let centeredInset = max(configuration.textInsets.horizontal, (newWidth - readingWidth) / 2)
+                    if abs(textView.textContainerInset.width - centeredInset) > 0.5 {
+                        textView.textContainerInset = NSSize(width: centeredInset, height: configuration.textInsets.vertical)
+                    }
+                }
                 context.coordinator.didEnsureLayoutForCurrentDocument = false
                 context.coordinator.updateCodeBlockSelection(textView: textView)
             }
@@ -253,11 +270,23 @@ public struct NativeTextViewWrapper: NSViewRepresentable {
         if nsView.autohidesScrollers != configuration.scrollers.autohidesScrollers {
             nsView.autohidesScrollers = configuration.scrollers.autohidesScrollers
         }
+        // Reading column: keep body text centered at readingWidth (inset = (viewWidth - readingWidth)/2)
+        // instead of resetting to the base inset — otherwise every update left-aligns it full-width.
+        let desiredHorizontalInset: CGFloat
+        if let readingWidth = configuration.readingWidth {
+            let w = nsView.contentView.bounds.width
+            desiredHorizontalInset = w > 0
+                ? max(configuration.textInsets.horizontal, (w - readingWidth) / 2)
+                : configuration.textInsets.horizontal
+        } else {
+            desiredHorizontalInset = configuration.textInsets.horizontal
+        }
         let desiredTextInset = NSSize(
-            width: configuration.textInsets.horizontal,
+            width: desiredHorizontalInset,
             height: configuration.textInsets.vertical
         )
-        if textView.textContainerInset != desiredTextInset {
+        if abs(textView.textContainerInset.width - desiredTextInset.width) > 0.5
+            || abs(textView.textContainerInset.height - desiredTextInset.height) > 0.5 {
             textView.textContainerInset = desiredTextInset
         }
         // Refresh services/theme when the embedder hands us a new configuration

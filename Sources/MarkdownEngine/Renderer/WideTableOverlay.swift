@@ -22,6 +22,16 @@ final class WideTableOverlay: NSScrollView {
     /// Weak parent ref for offset persistence + caret forwarding.
     weak var ownerTextView: NativeTextView?
 
+    /// Left content inset = how far the table's left edge sits from the overlay's left
+    /// edge (breakout mode: the text column's left edge). The inset area is scrollable
+    /// space the table grows into when scrolled.
+    var leftContentInset: CGFloat = 0 {
+        didSet {
+            guard abs(contentInsets.left - leftContentInset) > 0.5 else { return }
+            contentInsets = NSEdgeInsets(top: 0, left: leftContentInset, bottom: 0, right: 0)
+        }
+    }
+
     private let tableImageView: WideTableImageView
 
     init(sourceID: Int, image: NSImage, ownerTextView: NativeTextView, anchorLocation: Int) {
@@ -37,7 +47,9 @@ final class WideTableOverlay: NSScrollView {
 
         hasHorizontalScroller = true
         hasVerticalScroller = false
-        autohidesScrollers = false
+        // Auto-hide: the breakout overlay also hosts tables that fit the full width (no
+        // overflow), so only show the horizontal scroller when the table is actually wider.
+        autohidesScrollers = true
         borderType = .noBorder
         drawsBackground = false
         scrollerStyle = .legacy
@@ -45,6 +57,7 @@ final class WideTableOverlay: NSScrollView {
         verticalScrollElasticity = .none
         usesPredominantAxisScrolling = true
         horizontalScroller?.controlSize = .small
+        automaticallyAdjustsContentInsets = false
 
         documentView = tableImageView
         tableImageView.ownerOverlay = self
@@ -147,6 +160,10 @@ extension NativeTextView {
 
         let containerWidth = container.size.width
         guard containerWidth.isFinite, containerWidth > 0 else { return }
+        // Breakout mode (reading column): wide tables span the full view width and start
+        // flush with the text column's left edge, scrolling into both margins.
+        let breakout = configuration.readingWidth != nil
+        let viewWidth = bounds.width
 
         var seenSourceIDs: Set<Int> = []
         let fullRange = NSRange(location: 0, length: storage.length)
@@ -180,12 +197,13 @@ extension NativeTextView {
             guard !anchorRect.isEmpty else { return }
 
             let totalHeight = (storage.attribute(.scrollableBlockTotalHeight, at: attrRange.location, effectiveRange: nil) as? CGFloat) ?? image.size.height
-            let overlayFrame = NSRect(
-                x: textContainerOrigin.x + anchorRect.minX,
-                y: textContainerOrigin.y + anchorRect.minY,
-                width: containerWidth,
-                height: totalHeight
-            )
+            let columnLeft = textContainerOrigin.x + anchorRect.minX
+            let overlayFrame: NSRect = breakout
+                ? NSRect(x: 0, y: textContainerOrigin.y + anchorRect.minY, width: viewWidth, height: totalHeight)
+                : NSRect(x: columnLeft, y: textContainerOrigin.y + anchorRect.minY, width: containerWidth, height: totalHeight)
+            // Breakout: start the table flush with the text column's left edge; the left
+            // margin becomes scrollable space the table grows into.
+            let leftContentInset: CGFloat = breakout ? max(0, columnLeft) : 0
 
             if let existing = wideTableOverlays[sourceID] {
                 if !existing.frame.equalTo(overlayFrame) {
@@ -194,6 +212,7 @@ extension NativeTextView {
                     existing.frame = overlayFrame
                     self.setNeedsDisplay(overlayFrame)
                 }
+                existing.leftContentInset = leftContentInset
                 existing.updateImage(image)
                 existing.anchorTextLocation = attrRange.location
             } else {
@@ -202,6 +221,7 @@ extension NativeTextView {
                     ownerTextView: self, anchorLocation: attrRange.location
                 )
                 overlay.frame = overlayFrame
+                overlay.leftContentInset = leftContentInset
                 addSubview(overlay)
                 wideTableOverlays[sourceID] = overlay
                 let savedOffset = tableHorizontalScrollOffsets[sourceID] ?? 0
