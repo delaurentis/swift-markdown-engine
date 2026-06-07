@@ -44,10 +44,7 @@ public struct MarkdownEditorConfiguration: Sendable {
     public var safeAreaInsets: SafeAreaInsets
     public var scrollers: ScrollersPolicy
     public var textInsets: TextInsets
-    /// When set, body text is kept centered at this width (a reading column) while the
-    /// text view fills the full available width, so wide tables can break out of the
-    /// column into the margins via their scrollable overlay. nil = text fills the full
-    /// width (default, unchanged).
+    /// When set, body text stays centered at this width while wide tables break out into the margins; nil = full width (default, unchanged).
     public var readingWidth: CGFloat?
     public var spellChecking: SpellCheckingPolicy
 

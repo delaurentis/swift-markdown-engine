@@ -11,8 +11,7 @@ import AppKit
 
 // MARK: - Faint, hover-aware scroller
 
-/// A horizontal scroller drawn with a fainter knob — same legacy behavior as the default
-/// scroller, just a bit less visible.
+/// Horizontal scroller drawn with a fainter knob — same legacy behavior, just less visible.
 final class SubtleScroller: NSScroller {
     override func drawKnobSlot(in slot: NSRect, highlight: Bool) {
         // Transparent track — only the knob is drawn.
@@ -41,9 +40,7 @@ final class WideTableOverlay: NSScrollView {
     /// Weak parent ref for offset persistence + caret forwarding.
     weak var ownerTextView: NativeTextView?
 
-    /// Left content inset = how far the table's left edge sits from the overlay's left
-    /// edge (breakout mode: the text column's left edge). The inset area is scrollable
-    /// space the table grows into when scrolled.
+    /// Left inset = the table's left-edge offset (breakout: the text column's left); the inset is scrollable space.
     var leftContentInset: CGFloat = 0 {
         didSet {
             guard abs(contentInsets.left - leftContentInset) > 0.5 else { return }
@@ -66,8 +63,7 @@ final class WideTableOverlay: NSScrollView {
 
         hasHorizontalScroller = true
         hasVerticalScroller = false
-        // Auto-hide: the breakout overlay also hosts tables that fit the full width (no
-        // overflow), so only show the horizontal scroller when the table is actually wider.
+        // Auto-hide: only show the scroller when the table actually overflows.
         autohidesScrollers = true
         borderType = .noBorder
         drawsBackground = false
@@ -184,8 +180,7 @@ extension NativeTextView {
 
         let containerWidth = container.size.width
         guard containerWidth.isFinite, containerWidth > 0 else { return }
-        // Breakout mode (reading column): wide tables span the full view width and start
-        // flush with the text column's left edge, scrolling into both margins.
+        // Breakout (reading column): tables span the full view width, flush with the text column's left edge.
         let breakout = configuration.readingWidth != nil
         let viewWidth = bounds.width
 
@@ -225,8 +220,7 @@ extension NativeTextView {
             let overlayFrame: NSRect = breakout
                 ? NSRect(x: 0, y: textContainerOrigin.y + anchorRect.minY, width: viewWidth, height: totalHeight)
                 : NSRect(x: columnLeft, y: textContainerOrigin.y + anchorRect.minY, width: containerWidth, height: totalHeight)
-            // Breakout: start the table flush with the text column's left edge; the left
-            // margin becomes scrollable space the table grows into.
+            // Breakout: table starts at the text column's left edge; the left margin is scrollable space.
             let leftContentInset: CGFloat = breakout ? max(0, columnLeft) : 0
 
             if let existing = wideTableOverlays[sourceID] {

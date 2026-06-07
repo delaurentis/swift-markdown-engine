@@ -206,9 +206,7 @@ public struct NativeTextViewWrapper: NSViewRepresentable {
             let newWidth = scrollView.contentView.bounds.width
             if abs(newWidth - lastObservedViewportWidth) > 0.5 {
                 lastObservedViewportWidth = newWidth
-                // Reading column: keep body text centered at readingWidth while the text view
-                // fills the full width, so wide tables can break out into the margins via their
-                // scrollable overlay. Symmetric inset = (viewWidth - readingWidth)/2.
+                // Reading column: center text at readingWidth (symmetric inset) so wide tables can break out.
                 if let readingWidth = configuration.readingWidth {
                     let centeredInset = max(configuration.textInsets.horizontal, (newWidth - readingWidth) / 2)
                     if abs(textView.textContainerInset.width - centeredInset) > 0.5 {
@@ -270,8 +268,7 @@ public struct NativeTextViewWrapper: NSViewRepresentable {
         if nsView.autohidesScrollers != configuration.scrollers.autohidesScrollers {
             nsView.autohidesScrollers = configuration.scrollers.autohidesScrollers
         }
-        // Reading column: keep body text centered at readingWidth (inset = (viewWidth - readingWidth)/2)
-        // instead of resetting to the base inset — otherwise every update left-aligns it full-width.
+        // Reading column: center text at readingWidth instead of resetting the inset (else updates left-align it full-width).
         let desiredHorizontalInset: CGFloat
         if let readingWidth = configuration.readingWidth {
             let w = nsView.contentView.bounds.width
