@@ -9,6 +9,25 @@
 
 import AppKit
 
+// MARK: - Faint, hover-aware scroller
+
+/// A horizontal scroller drawn with a fainter knob — same legacy behavior as the default
+/// scroller, just a bit less visible.
+final class SubtleScroller: NSScroller {
+    override func drawKnobSlot(in slot: NSRect, highlight: Bool) {
+        // Transparent track — only the knob is drawn.
+    }
+
+    override func drawKnob() {
+        let knob = rect(for: .knob)
+        guard knob.width > 1, knob.height > 1 else { return }
+        let thickness: CGFloat = 5
+        let pill = knob.insetBy(dx: 2, dy: max(0, (knob.height - thickness) / 2))
+        NSColor.secondaryLabelColor.withAlphaComponent(0.3).setFill()   // ← faintness; tweak here
+        NSBezierPath(roundedRect: pill, xRadius: pill.height / 2, yRadius: pill.height / 2).fill()
+    }
+}
+
 // MARK: - Overlay view
 
 final class WideTableOverlay: NSScrollView {
@@ -52,7 +71,11 @@ final class WideTableOverlay: NSScrollView {
         autohidesScrollers = true
         borderType = .noBorder
         drawsBackground = false
+        // Normal legacy scroller, just drawn with a fainter knob (see SubtleScroller).
         scrollerStyle = .legacy
+        let subtleScroller = SubtleScroller()
+        subtleScroller.scrollerStyle = .legacy
+        horizontalScroller = subtleScroller
         horizontalScrollElasticity = .allowed
         verticalScrollElasticity = .none
         usesPredominantAxisScrolling = true
@@ -97,6 +120,7 @@ final class WideTableOverlay: NSScrollView {
             nextResponder?.scrollWheel(with: event)
         }
     }
+
 
     /// Swap the rendered image after a restyle regenerated it.
     func updateImage(_ image: NSImage) {
