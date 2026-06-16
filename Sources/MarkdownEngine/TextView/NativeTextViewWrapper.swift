@@ -356,7 +356,16 @@ public struct NativeTextViewWrapper: NSViewRepresentable {
         // same text). Done before the no-op early returns below, since a
         // selection-only change carries no text/font delta. Guarded so it doesn't
         // fight a selection the user is making in THIS view.
+        //
+        // Only a PASSIVE (non-first-responder) view mirrors. The focused view is
+        // the one the user is clicking in; its own selection is the source of
+        // truth. Mirroring back into it is not just redundant — the `selection`
+        // binding lags a click by a runloop, so an unrelated `updateNSView` pass
+        // (code-block copy-button reconcile, layout-change pin refresh, …) can
+        // arrive while the binding still holds the PREVIOUS caret, and this block
+        // would then yank the focused view back to that stale spot + scroll to it.
         if let selection,
+           textView.window?.firstResponder !== textView,
            NSMaxRange(selection) <= (textView.string as NSString).length,
            selection != textView.selectedRange() {
             // Suppress the change echo so a synced sibling pane doesn't ping-pong
