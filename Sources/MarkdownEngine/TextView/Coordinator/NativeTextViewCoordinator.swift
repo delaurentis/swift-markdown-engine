@@ -43,6 +43,9 @@ public final class NativeTextViewCoordinator: NSObject, NSTextViewDelegate {
     var layoutBridge: LayoutBridge?
     var layoutDelegate: MarkdownLayoutManagerDelegate?
     var onLinkClick: ((String) -> Void)?
+    /// Fires when the user clicks a standard `[text](dest)` link, with the
+    /// raw destination string exactly as authored.
+    var onMarkdownLinkClick: ((String) -> Void)?
     var onCaretRectChange: ((CGRect) -> Void)?
     /// Fires on every selection change with the textView's selected character
     /// range — lets an embedder mirror the selection into another editor.

@@ -404,6 +404,16 @@ extension NativeTextViewCoordinator {
     }
 
     public func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
+        // Standard `[text](dest)` link: forward the raw, as-authored destination
+        // so the embedder can resolve relative paths itself (the `.link` value
+        // may have been normalized for display). Takes precedence over the
+        // wiki-link path — the two carry distinct attributes.
+        if let href = textView.textStorage?.attribute(.markdownLinkHref, at: charIndex, effectiveRange: nil) as? String {
+            DispatchQueue.main.async {
+                self.onMarkdownLinkClick?(href)
+            }
+            return true
+        }
         guard let target = WikiLinkService.resolveIdentifier(link: link, textView: textView, at: charIndex) else {
             return false
         }

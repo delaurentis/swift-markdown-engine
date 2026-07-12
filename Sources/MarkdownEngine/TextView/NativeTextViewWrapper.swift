@@ -62,6 +62,11 @@ public struct NativeTextViewWrapper: NSViewRepresentable {
     /// resolved opaque identifier (or the display name when no resolver
     /// was supplied).
     public var onLinkClick: ((String) -> Void)?
+    /// Fires when the user clicks a standard `[text](dest)` link. The argument
+    /// is the destination exactly as authored, so the embedder can resolve a
+    /// relative path against its own base (e.g. the document's directory)
+    /// before opening it.
+    public var onMarkdownLinkClick: ((String) -> Void)?
     /// Fires whenever the caret rect inside an active wiki-link changes,
     /// so embedders can position a follow-the-caret UI.
     public var onCaretRectChange: ((CGRect) -> Void)?
@@ -104,6 +109,7 @@ public struct NativeTextViewWrapper: NSViewRepresentable {
         suppressesCursor: Bool = false,
         onPasteImage: ((NSPasteboard) -> String?)? = nil,
         onLinkClick: ((String) -> Void)? = nil,
+        onMarkdownLinkClick: ((String) -> Void)? = nil,
         onCaretRectChange: ((CGRect) -> Void)? = nil,
         onSelectionChange: ((NSRange) -> Void)? = nil,
         onMermaidActivate: ((String) -> Void)? = nil,
@@ -125,6 +131,7 @@ public struct NativeTextViewWrapper: NSViewRepresentable {
         self.suppressesCursor = suppressesCursor
         self.onPasteImage = onPasteImage
         self.onLinkClick = onLinkClick
+        self.onMarkdownLinkClick = onMarkdownLinkClick
         self.onCaretRectChange = onCaretRectChange
         self.onSelectionChange = onSelectionChange
         self.onMermaidActivate = onMermaidActivate
@@ -445,6 +452,7 @@ public struct NativeTextViewWrapper: NSViewRepresentable {
         context.coordinator.onRenderedLayoutChange = onRenderedLayoutChange
         context.coordinator.onInlineSelectionChange = onInlineSelectionChange
         context.coordinator.onCodeBlockSelectionChange = onCodeBlockSelectionChange
+        context.coordinator.onMarkdownLinkClick = onMarkdownLinkClick
         context.coordinator.didInitialFormatting = true
     }
 
@@ -458,6 +466,7 @@ public struct NativeTextViewWrapper: NSViewRepresentable {
             onInlineSelectionChange: onInlineSelectionChange
         )
         coordinator.documentId = documentId
+        coordinator.onMarkdownLinkClick = onMarkdownLinkClick
         coordinator.configuration = configuration
         coordinator.lastImageFingerprint = configuration.services.images.fingerprint()
         coordinator.lastWikiFingerprint = configuration.services.wikiLinks.fingerprint()

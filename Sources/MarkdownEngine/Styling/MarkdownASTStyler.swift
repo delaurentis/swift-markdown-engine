@@ -474,7 +474,11 @@ enum MarkdownASTStyler {
         children: [InlineNode], font: NSFont, ctx: Ctx, into attrs: inout [StyledRange]
     ) {
         attrs.append((range, [.spellingState: 0]))
-        var urlString = ctx.ns.substring(with: urlRange)
+        // The destination exactly as authored — kept verbatim so embedders can
+        // resolve relative paths. `urlString` may be normalized below purely so
+        // `.link` (and the system's default click handling) gets a valid URL.
+        let rawHref = ctx.ns.substring(with: urlRange)
+        var urlString = rawHref
         if !urlString.contains("://") { urlString = "https://\(urlString)" }
         let isActive = ctx.isActive(range)
         if let url = URL(string: urlString) {
@@ -485,6 +489,7 @@ enum MarkdownASTStyler {
             } else {
                 attrs.append((textRange, [
                     .link: url,
+                    .markdownLinkHref: rawHref,
                     .underlineStyle: NSUnderlineStyle.single.rawValue,
                     .foregroundColor: ctx.theme.link,
                 ]))

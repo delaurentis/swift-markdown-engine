@@ -15,6 +15,9 @@ extension NativeTextView {
         if activateMermaidIfHit(event: event) {
             return
         }
+        if followLinkIfHit(event: event) {
+            return
+        }
         if let toggled = toggleTaskCheckboxIfHit(event: event), toggled {
             return
         }
@@ -32,6 +35,28 @@ extension NativeTextView {
         }
 
         super.mouseDown(with: event)
+    }
+
+    /// Follow a link on a plain single click in reading (preview) mode.
+    ///
+    /// NSTextView only follows links on a bare click when it's non-editable;
+    /// our preview surface stays editable (so the user can still type), so a
+    /// plain click would just place the caret. Here we route that click to the
+    /// link delegate ourselves. Marker-visible (Code) editing is left alone —
+    /// there a click positions the caret and a link is followed with ⌘-click,
+    /// the standard editable-text-view gesture. Returns `true` when the click
+    /// was consumed as a link follow.
+    private func followLinkIfHit(event: NSEvent) -> Bool {
+        guard event.clickCount == 1 else { return false }   // let double-click select a word
+        guard configuration.markerVisibility == .allHidden else { return false }
+        // Any modifier (⌘ follow / ⇧ ⌥ select) keeps the standard handling.
+        let mods: NSEvent.ModifierFlags = [.command, .shift, .option, .control]
+        guard event.modifierFlags.intersection(mods).isEmpty else { return false }
+
+        let viewPoint = convert(event.locationInWindow, from: nil)
+        guard let hit = linkHit(at: viewPoint) else { return false }
+        guard let delegate = delegate else { return false }
+        return delegate.textView?(self, clickedOnLink: hit.link, at: hit.index) ?? false
     }
 
     func performDragBoostTick() {

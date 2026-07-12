@@ -13,6 +13,11 @@ import Foundation
 extension NSAttributedString.Key {
     public static let wikiLinkID = NSAttributedString.Key("NodeLinkID")
     public static let taskCheckbox = NSAttributedString.Key("TaskCheckbox")
+    /// The raw, untouched destination of a standard `[text](dest)` link, as
+    /// authored. Carried separately from `.link` (which the styler may
+    /// normalize into an absolute URL for display) so an embedder can resolve
+    /// relative paths against its own base — e.g. the document's location.
+    public static let markdownLinkHref = NSAttributedString.Key("MarkdownLinkHref")
 }
 
 enum MarkdownTokenKind {
