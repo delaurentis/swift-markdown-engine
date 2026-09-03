@@ -71,10 +71,35 @@ struct ListParsingTests {
         #expect(blocks.contains { if case .thematicBreak = $0.kind { return true }; return false })
     }
 
-    @Test func plainLineAfterListDoesNotMergeIn() {
-        let blocks = BlockParser.parse("- item\ntext\n")
-        #expect(hasList(blocks))
-        #expect(blocks.contains { if case .paragraph = $0.kind { return true }; return false })
+    /// A plain line directly after a list item is a lazy continuation (hard-wrapped
+    /// item text) and joins the list block; a blank line ends the item, so text
+    /// after it is its own paragraph again.
+    @Test func plainLineAfterListIsALazyContinuation() {
+        let merged = BlockParser.parse("- item\ntext\n")
+        #expect(hasList(merged))
+        #expect(!merged.contains { if case .paragraph = $0.kind { return true }; return false })
+
+        let split = BlockParser.parse("- item\n\ntext\n")
+        #expect(hasList(split))
+        #expect(split.contains { if case .paragraph = $0.kind { return true }; return false })
+    }
+
+    /// The continuation stays inside the item: one ListItem spanning both lines,
+    /// with the wrapped text in its content.
+    @Test func continuationLineExtendsTheItem() {
+        let list = items("- item\n  wrapped tail\n")
+        #expect(list?.count == 1)
+        #expect(list?.first.map { NSMaxRange($0.range) } == ("- item\n  wrapped tail\n" as NSString).length)
+    }
+
+    /// Single-letter ordered markers (`a.` / `a)`) parse as list items.
+    @Test func letterMarkersParseAsListItems() {
+        #expect(BlockParser.isListItem("a. item"))
+        #expect(BlockParser.isListItem("B) item"))
+        #expect(!BlockParser.isListItem("e.g. not a list"))
+        #expect(!BlockParser.isListItem("ab. not a list"))
+        let list = items("a. first\n")
+        #expect(list?.first?.ordered == true)
     }
 
     /// The caret-crossing trigger must recognize the same task markers the

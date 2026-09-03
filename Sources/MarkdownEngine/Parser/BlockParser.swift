@@ -229,9 +229,20 @@ enum BlockParser {
                 i = end + 1
 
             } else if isListItem(line) {
-                // Consecutive list-item lines form one list block; per-item detail is parsed in DocumentAST.
+                // Consecutive list-item lines form one list block; per-item detail is
+                // parsed in DocumentAST. A non-blank line that opens no other block
+                // kind is a lazy continuation (hard-wrapped item text) and stays in
+                // the list block, attached to the item above it.
                 var end = i
-                while end + 1 < lines.count, isListItem(lineText(end + 1)) { end += 1 }
+                while end + 1 < lines.count {
+                    let next = lineText(end + 1)
+                    if isListItem(next) { end += 1; continue }
+                    if isBlank(next) || isFence(next) || isThematicBreak(next)
+                        || isHeading(next) || isBlockquote(next) { break }
+                    if isTableRow(next), end + 2 < lines.count, isTableSeparator(lineText(end + 2)) { break }
+                    if isBlockLatexOpen(next), blockLatexCloseIndex(from: end + 1) != nil { break }
+                    end += 1
+                }
                 blocks.append(Block(kind: .list, range: union(lines[i...end])))
                 i = end + 1
 
@@ -310,7 +321,8 @@ enum BlockParser {
         return rest.first == ">"
     }
 
-    /// A list-item line: optional indent, a bullet (`-`/`*`/`+`) or ordered marker (`1.`/`1)`), then a space/tab.
+    /// A list-item line: optional indent, a bullet (`-`/`*`/`+`) or ordered marker
+    /// (`1.`/`1)`, or a single-letter `a.`/`a)`), then a space/tab.
     static func isListItem(_ line: String) -> Bool {
         var rest = Substring(line).drop { $0 == " " || $0 == "\t" }
         guard let first = rest.first else { return false }
@@ -319,6 +331,10 @@ enum BlockParser {
         } else if first.isNumber {
             var digits = 0
             while let c = rest.first, c.isNumber, digits < 9 { rest = rest.dropFirst(); digits += 1 }
+            guard let d = rest.first, d == "." || d == ")" else { return false }
+            rest = rest.dropFirst()
+        } else if first.isASCII, first.isLetter {
+            rest = rest.dropFirst()
             guard let d = rest.first, d == "." || d == ")" else { return false }
             rest = rest.dropFirst()
         } else {

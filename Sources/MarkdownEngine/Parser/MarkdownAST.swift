@@ -11,9 +11,9 @@
 
 import Foundation
 
-/// One list-item line: marker run, optional GFM checkbox, and indent column count.
+/// One list item: marker run, optional GFM checkbox, and indent column count.
 struct ListItem: Equatable {
-    let range: NSRange          // the item's full line (incl. trailing newline)
+    let range: NSRange          // marker line plus any hard-wrapped continuation lines (incl. trailing newline)
     let marker: NSRange
     let ordered: Bool
     let number: Int?            // ordered start value, e.g. `5.` → 5
@@ -111,20 +111,26 @@ enum DocumentAST {
                         inlines: scoped ? InlineParser.parse(ns, range: contentRange) : [])
     }
 
-    /// Split a list block into one `ListItem` per physical line.
+    /// Split a list block into `ListItem`s: a marker line opens an item, and any
+    /// following non-marker lines are its hard-wrapped continuations.
     private static func list(_ range: NSRange, _ ns: NSString, scoped: Bool = true) -> BlockNode {
-        var items: [ListItem] = []
+        var itemRanges: [NSRange] = []
         var cursor = range.location
         let end = NSMaxRange(range)
         while cursor < end {
             let line = ns.lineRange(for: NSRange(location: cursor, length: 0))
-            items.append(listItem(line, ns, scoped: scoped))
             cursor = NSMaxRange(line)
+            if itemRanges.isEmpty || BlockParser.isListItem(ns.substring(with: line)) {
+                itemRanges.append(line)
+            } else {
+                itemRanges[itemRanges.count - 1] = NSUnionRange(itemRanges[itemRanges.count - 1], line)
+            }
         }
-        return .list(range: range, items: items)
+        return .list(range: range, items: itemRanges.map { listItem($0, ns, scoped: scoped) })
     }
 
-    /// Parse one list-item line: indent, marker, optional task checkbox, inline content.
+    /// Parse one list item (marker line + continuations): indent, marker, optional
+    /// task checkbox, inline content spanning any continuation lines.
     private static func listItem(_ lineRange: NSRange, _ ns: NSString, scoped: Bool = true) -> ListItem {
         let end = NSMaxRange(lineRange)
         var i = lineRange.location
@@ -136,7 +142,7 @@ enum DocumentAST {
         let c = i < end ? ns.character(at: i) : 0
         if c == 0x2D || c == 0x2A || c == 0x2B {        // - * +
             i += 1
-        } else {                                        // N. / N)
+        } else if c >= 0x30, c <= 0x39 {                // N. / N)
             var value = 0
             var digits = 0
             while i < end, ns.character(at: i) >= 0x30, ns.character(at: i) <= 0x39, digits < 9 {
@@ -144,6 +150,10 @@ enum DocumentAST {
             }
             ordered = true
             number = value
+            if i < end { i += 1 }                       // the `.` or `)`
+        } else {                                        // a. / a)  (single letter)
+            ordered = true
+            if i < end { i += 1 }                       // the letter
             if i < end { i += 1 }                       // the `.` or `)`
         }
         let marker = NSRange(location: markerStart, length: i - markerStart)

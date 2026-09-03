@@ -143,7 +143,7 @@ enum MarkdownASTStyler {
     private static func styleListItem(_ item: ListItem, ctx: Ctx, into attrs: inout [StyledRange]) {
         guard ctx.config.lists.helpersEnabled else { return }
 
-        // Line content (item line minus its trailing newline).
+        // Line content (item range minus its trailing newline).
         var line = item.range
         while line.length > 0 {
             let last = ctx.ns.character(at: NSMaxRange(line) - 1)
@@ -151,7 +151,10 @@ enum MarkdownASTStyler {
             line.length -= 1
         }
 
-        // 1. Indent paragraph style (hanging indent so wrapped lines align).
+        // 1. Indent paragraph styles (hanging indent so wrapped lines align).
+        //    The marker line keeps the first-line indent; hard-wrapped continuation
+        //    lines belong to the same logical paragraph, so their text starts at
+        //    the hang position and only the last line carries the item spacing.
         let wsRange = NSRange(location: item.range.location, length: item.marker.location - item.range.location)
         let ws = ctx.ns.substring(with: wsRange)
         let markerGroup = NSRange(location: item.marker.location,
@@ -162,18 +165,37 @@ enum MarkdownASTStyler {
         let extraSpacing = (item.checkbox != nil && !item.checked)
             ? HeadingHelpers.checkboxExtraSpacing(font: ctx.baseFont, configuration: ctx.config.checkbox)
             : 0
-        let ps = NSMutableParagraphStyle()
         let lineHeight = ctx.baseLineHeight + ctx.config.lists.extraLineHeight
-        ps.minimumLineHeight = lineHeight
-        ps.maximumLineHeight = lineHeight
-        ps.lineSpacing = 0
-        ps.paragraphSpacing = ctx.baseParagraphSpacing
-        ps.paragraphSpacingBefore = 0
-        ps.tabStops = []
-        ps.defaultTabInterval = ctx.config.lists.indentPerLevel
-        ps.firstLineHeadIndent = ctx.config.lists.indentPerLevel
-        ps.headIndent = ctx.config.lists.indentPerLevel + depthIndent + markerWidth + extraSpacing
-        attrs.append((line, [.paragraphStyle: ps]))
+        let hang = ctx.config.lists.indentPerLevel + depthIndent + markerWidth + extraSpacing
+        var paraStart = line.location
+        var isMarkerLine = true
+        while paraStart < NSMaxRange(line) {
+            let para = ctx.ns.lineRange(for: NSRange(location: paraStart, length: 0))
+            let ps = NSMutableParagraphStyle()
+            ps.minimumLineHeight = lineHeight
+            ps.maximumLineHeight = lineHeight
+            ps.lineSpacing = 0
+            ps.paragraphSpacing = NSMaxRange(para) >= NSMaxRange(line) ? ctx.baseParagraphSpacing : 0
+            ps.paragraphSpacingBefore = 0
+            ps.tabStops = []
+            ps.defaultTabInterval = ctx.config.lists.indentPerLevel
+            ps.headIndent = hang
+            if isMarkerLine {
+                ps.firstLineHeadIndent = ctx.config.lists.indentPerLevel
+            } else {
+                // A continuation's literal leading whitespace renders as glyphs;
+                // offset the first-line indent so its text lands on the hang.
+                var wsEnd = para.location
+                while wsEnd < NSMaxRange(para),
+                      ctx.ns.character(at: wsEnd) == 0x20 || ctx.ns.character(at: wsEnd) == 0x09 { wsEnd += 1 }
+                let contWs = ctx.ns.substring(with: NSRange(location: para.location, length: wsEnd - para.location))
+                let contWsWidth = (contWs as NSString).size(withAttributes: [.font: ctx.baseFont]).width
+                ps.firstLineHeadIndent = max(0, hang - contWsWidth)
+            }
+            attrs.append((NSIntersectionRange(para, line), [.paragraphStyle: ps]))
+            isMarkerLine = false
+            paraStart = NSMaxRange(para)
+        }
 
         // 2. Marker decoration (suppressed while the caret edits the syntax).
         if let box = item.checkbox {
