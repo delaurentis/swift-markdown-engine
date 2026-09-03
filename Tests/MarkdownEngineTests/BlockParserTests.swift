@@ -68,6 +68,23 @@ struct BlockParserTests {
         #expect(BlockParser.parse("```\ncode\n```\n") == [b(.fencedCode, 0, 13)])
     }
 
+    @Test("a fence indented up to 3 spaces still opens/closes a code block")
+    func indentedFence() {
+        let text = "   ```bash\n   cmd\n   ```\n"
+        #expect(BlockParser.parse(text) == [b(.fencedCode, 0, (text as NSString).length)])
+        assertTiles(text)
+    }
+
+    @Test("indented fence parts: language extracted, both fences are markers")
+    func indentedFenceParts() {
+        let text = "   ```bash\n   cmd\n   ```\n" as NSString
+        let parts = MarkdownASTStyler.codeBlockParts(NSRange(location: 0, length: text.length), text)
+        #expect(parts.language == "bash")
+        #expect(parts.openFence == NSRange(location: 0, length: 11))    // "   ```bash\n"
+        #expect(parts.closeFence == NSRange(location: 18, length: 6))   // "   ```"
+        #expect(parts.content == NSRange(location: 11, length: 7))      // "   cmd\n"
+    }
+
     @Test("consecutive blockquote lines form one block, ended by a non-quote line")
     func blockquote() {
         let text = "> a\n> b\nc"

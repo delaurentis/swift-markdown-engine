@@ -114,12 +114,18 @@ enum BlockLevelTokenizer {
         let afterOpenLine = line(in: s, from: 0).nextStart
         var lineStart = afterOpenLine
         var closingStart = -1
+        var closingTicks = -1
         while lineStart < len {
-            if lineStart + 3 <= len,
-               s.character(at: lineStart) == backtick,
-               s.character(at: lineStart + 1) == backtick,
-               s.character(at: lineStart + 2) == backtick {
+            // A closing fence may sit behind up to 3 leading spaces/tabs.
+            var i = lineStart
+            var indent = 0
+            while i < len, indent < 3, isWS(s.character(at: i)) { i += 1; indent += 1 }
+            if i + 3 <= len,
+               s.character(at: i) == backtick,
+               s.character(at: i + 1) == backtick,
+               s.character(at: i + 2) == backtick {
                 closingStart = lineStart
+                closingTicks = i
                 break
             }
             let next = line(in: s, from: lineStart).nextStart
@@ -129,10 +135,10 @@ enum BlockLevelTokenizer {
         guard closingStart >= 0 else { return [] }   // no closing fence → legacy didn't match
         return [MarkdownToken(
             kind: .codeBlock,
-            range: NSRange(location: 0, length: closingStart + 3),
+            range: NSRange(location: 0, length: closingTicks + 3),
             contentRange: NSRange(location: afterOpenLine, length: closingStart - afterOpenLine),
             markerRanges: [NSRange(location: 0, length: afterOpenLine),
-                           NSRange(location: closingStart, length: 3)])]
+                           NSRange(location: closingStart, length: closingTicks + 3 - closingStart)])]
     }
 
     // MARK: - Table  (legacy header `|…|` + separator `|-…-|` + data rows)

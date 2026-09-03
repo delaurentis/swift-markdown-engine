@@ -415,14 +415,28 @@ enum MarkdownASTStyler {
 
         let lastLine = ns.lineRange(for: NSRange(location: max(start, end - 1), length: 0))
         var bt = lastLine.location
+        var closeIndent = 0
+        while bt < NSMaxRange(lastLine), closeIndent < 3,
+              ns.character(at: bt) == 0x20 || ns.character(at: bt) == 0x09 { bt += 1; closeIndent += 1 }
+        let closeTicks = bt
         while bt < NSMaxRange(lastLine), ns.character(at: bt) == 0x60 { bt += 1 }
-        let closeFence = NSRange(location: lastLine.location, length: bt - lastLine.location)
+        // The close-fence marker spans the line's indent plus its backticks; no
+        // backticks means an incomplete fence (closeFence collapses to empty).
+        let closeFence = bt > closeTicks
+            ? NSRange(location: lastLine.location, length: bt - lastLine.location)
+            : NSRange(location: lastLine.location, length: 0)
         let codeRange = NSRange(location: start, length: NSMaxRange(closeFence) - start)
         let content = NSRange(location: openEnd, length: max(0, lastLine.location - openEnd))
 
+        // Language: whatever follows the open fence's indent and backtick run.
         var language: String?
-        if openFence.length > 3 {
-            let raw = ns.substring(with: NSRange(location: start + 3, length: openFence.length - 3))
+        var lang = start
+        var openIndent = 0
+        while lang < NSMaxRange(openFence), openIndent < 3,
+              ns.character(at: lang) == 0x20 || ns.character(at: lang) == 0x09 { lang += 1; openIndent += 1 }
+        while lang < NSMaxRange(openFence), ns.character(at: lang) == 0x60 { lang += 1 }
+        if lang < NSMaxRange(openFence) {
+            let raw = ns.substring(with: NSRange(location: lang, length: NSMaxRange(openFence) - lang))
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             language = raw.isEmpty ? nil : raw
         }

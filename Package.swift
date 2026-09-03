@@ -41,5 +41,6 @@ let package = Package(
                 .product(name: "SwiftMath", package: "SwiftMath"),
             ]
         ),
+        .testTarget(name: "MarkdownEngineTests", dependencies: ["MarkdownEngine"]),
     ]
 )

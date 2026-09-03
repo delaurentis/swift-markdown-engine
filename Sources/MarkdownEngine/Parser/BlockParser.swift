@@ -272,9 +272,15 @@ enum BlockParser {
         line.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    /// An opening or closing fence line: starts with three backticks.
+    /// An opening or closing fence line: three backticks after up to 3 leading
+    /// spaces/tabs (CommonMark allows fence indentation, e.g. inside list items).
     private static func isFence(_ line: String) -> Bool {
-        line.hasPrefix("```")
+        var rest = Substring(line)
+        var indent = 0
+        while indent < 3, let c = rest.first, c == " " || c == "\t" {
+            rest = rest.dropFirst(); indent += 1
+        }
+        return rest.hasPrefix("```")
     }
 
     /// `^\s*(-{3,}|\*{3,}|_{3,})\s*$` — a solid run of 3+ of one of `- * _`.
