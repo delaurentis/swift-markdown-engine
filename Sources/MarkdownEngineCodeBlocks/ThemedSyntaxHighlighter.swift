@@ -90,18 +90,28 @@ public final class ThemedSyntaxHighlighter: SyntaxHighlighter, @unchecked Sendab
 
     public func highlight(code: String, language: String?) -> NSAttributedString? {
         guard let hljs else { return nil }
-        let lang = language?.lowercased().trimmingCharacters(in: .whitespaces)
-        let langKey = (lang?.isEmpty == false) ? lang! : "auto"
-        let cacheKey = "\(langKey)|\(code)" as NSString
+        // Fence-word contract: a blank language renders as plain text (the
+        // standard markdown behavior — auto-detect guesses a language for prose
+        // and colors arbitrary English words); "auto" or "color" opts into
+        // highlight.js auto-detect; anything else is highlighted as that
+        // language, plain if unsupported.
+        guard let lang = language?.lowercased().trimmingCharacters(in: .whitespaces),
+              !lang.isEmpty else { return nil }
+        let cacheKey = "\(lang)|\(code)" as NSString
 
         lock.lock()
         if let cached = cache.object(forKey: cacheKey) { lock.unlock(); return cached }
-        let skip = lang.map { unsupported.contains($0) } ?? true
+        let skip = unsupported.contains(lang)
         lock.unlock()
+        if skip { return nil }
 
-        // Run highlight.js: explicit language when known + supported, else auto.
         var html: String?
-        if let lang, !lang.isEmpty, !skip {
+        if lang == "auto" || lang == "color" {
+            if let r = hljs.invokeMethod("highlightAuto", withArguments: [code]),
+               let v = r.objectForKeyedSubscript("value"), !v.isUndefined {
+                html = v.toString()
+            }
+        } else {
             let opts = ["language": lang, "ignoreIllegals": true] as [String: Any]
             if let r = hljs.invokeMethod("highlight", withArguments: [code, opts]),
                let v = r.objectForKeyedSubscript("value"), !v.isUndefined {
@@ -109,13 +119,7 @@ public final class ThemedSyntaxHighlighter: SyntaxHighlighter, @unchecked Sendab
             }
             if html == nil || html == "undefined" {
                 lock.lock(); unsupported.insert(lang); lock.unlock()
-                html = nil
-            }
-        }
-        if html == nil {
-            if let r = hljs.invokeMethod("highlightAuto", withArguments: [code]),
-               let v = r.objectForKeyedSubscript("value"), !v.isUndefined {
-                html = v.toString()
+                return nil
             }
         }
         guard let html, html != "undefined" else { return nil }
